@@ -106,15 +106,15 @@ SurfaceTag_bars = factory.addPlaneSurface([WireTag_bars])
 # Extrusión de Superficies
 # ---------------------------
 
-# Extruir la pared interna (Depth = 10)
+# Extruir la pared interna (Depth = Constants.Depth)
 Extrude_inner = factory.extrude([(2, SurfaceTag_inner)], 0, 0, Constants.Depth)
 Vol_inner = Extrude_inner[1][1]
 
-# Extruir la pared externa (DepthOuter = 13)
+# Extruir la pared externa (DepthOuter = Constants.DepthOuter)
 Extrude_outer = factory.extrude([(2, SurfaceTag_outer)], 0, 0, Constants.DepthOuter)
 Vol_outer = Extrude_outer[1][1]
 
-# Extruir las barras internas (Depth = 10)
+# Extruir las barras internas (Depth = Constants.Depth)
 Extrude_bars = factory.extrude([(2, SurfaceTag_bars)], 0, 0, Constants.Depth)
 Vol_bars = Extrude_bars[1][1]
 
@@ -124,11 +124,11 @@ factory.translate([(3, Vol_outer)], 0, 0, -DepthDifference)
 
 # Fusionar la pared interna con las barras internas
 factory.synchronize()
-Solid_inner = factory.fuse([(3, Vol_inner)], [(3, Vol_bars)])[0]
+Solid_inner = factory.fuse([(3, Vol_inner)], [(3, Vol_bars)], removeObject=True, removeTool=True)[0]
 
 # Fusionar el sólido interno con la pared externa
 factory.synchronize()
-Solid_combined = factory.fuse(Solid_inner, [(3, Vol_outer)])[0]
+Solid_combined = factory.fuse(Solid_inner, [(3, Vol_outer)], removeObject=True, removeTool=True)[0]
 
 # Copiar y reflejar el sólido combinado para crear la garra completa
 CopyDimTags = factory.copy(Solid_combined)
@@ -137,7 +137,7 @@ factory.symmetrize(CopyDimTags, 1, 0, 0, 0)  # Reflejar en el plano YZ
 factory.synchronize()
 
 # Fusionar las dos mitades para obtener la garra completa
-result = factory.fuse(Solid_combined, CopyDimTags)
+result = factory.fuse(Solid_combined, CopyDimTags, removeObject=True, removeTool=True)
 FullGripper = result[0]
 
 factory.synchronize()
@@ -161,9 +161,212 @@ factory.translate(DuplicatedGripper, 0, 0, SpaceBetweenGrippers_Z)
 
 factory.synchronize()
 
-# Opcional: Fusionar ambas garras en una sola entidad
-# Si deseas que sean entidades separadas, puedes omitir este paso
-TotalGripper = factory.fuse(FullGripperVolumes, DuplicatedGripper)[0]
+# Fusionar ambas garras
+TotalGripper = factory.fuse(FullGripperVolumes, DuplicatedGripper, removeObject=True, removeTool=True)[0]
+
+factory.synchronize()
+
+# Añadir la garra como un grupo físico
+gmsh.model.addPhysicalGroup(3, [vol[1] for vol in TotalGripper], tag=1, name="Gripper")
+
+# ---------------------------
+# Función para Crear una Ranura Inclinada
+# ---------------------------
+
+def create_inclined_slot(slot_width, slot_height, slot_depth, inclination_angle, position):
+    """
+    Crea una ranura inclinada y la posiciona.
+
+    :param slot_width: Ancho de la ranura.
+    :param slot_height: Altura de la ranura.
+    :param slot_depth: Profundidad de la ranura.
+    :param inclination_angle: Ángulo de inclinación en radianes.
+    :param position: Tupla (x, y, z) de la posición.
+    :return: Lista con el volumen de la ranura.
+    """
+    # Crear el prisma de la ranura en el origen
+    slot = factory.addBox(
+        0,
+        0,
+        0,
+        slot_width,
+        slot_height,
+        slot_depth
+    )
+    slot_volume = [(3, slot)]
+
+    factory.synchronize()
+
+    # Rotar la ranura alrededor del eje Y
+    factory.rotate(slot_volume, 0, 0, 0, 0, 0, 1, -0.30)
+
+    # Trasladar la ranura a la posición deseada
+    factory.translate(slot_volume, *position)
+
+    factory.synchronize()
+
+    return slot_volume
+
+def create_inclined_slot2(slot_width, slot_height, slot_depth, inclination_angle, position):
+    """
+    Crea una ranura inclinada y la posiciona.
+
+    :param slot_width: Ancho de la ranura.
+    :param slot_height: Altura de la ranura.
+    :param slot_depth: Profundidad de la ranura.
+    :param inclination_angle: Ángulo de inclinación en radianes.
+    :param position: Tupla (x, y, z) de la posición.
+    :return: Lista con el volumen de la ranura.
+    """
+    # Crear el prisma de la ranura en el origen
+    slot = factory.addBox(
+        0,
+        0,
+        0,
+        1,
+        0.5,
+        20
+    )
+    slot_volume2 = [(3, slot)]
+
+    factory.synchronize()
+
+    # Rotar la ranura alrededor del eje Y
+    factory.rotate(slot_volume2, 0, 0, 0, 0, 0, 1, -0.30)
+
+    # Trasladar la ranura a la posición deseada
+    factory.translate(slot_volume2, *position)
+
+    factory.synchronize()
+
+    return slot_volume2
+
+# ---------------------------
+# Creación de la Ranura Inclinada
+# ---------------------------
+
+# Definir las dimensiones y posición de la ranura desde Constants.py
+SlotWidth = Constants.SlotWidth
+SlotHeight = Constants.SlotHeight
+SlotDepth = Constants.SlotDepth
+InclinationAngle = 0  # Ángulo de inclinación de las paredes
+SlotPosition = (Constants.SlotX, Constants.SlotY, Constants.SlotZ)
+SlotPosition2 = (Constants.SlotX, Constants.SlotY, 0)
+SlotPosition3 = (Constants.SlotX, Constants.SlotY, -3)
+SlotPosition4 = (Constants.SlotX, Constants.SlotY, -6)
+
+verticalpos = (-26, 25, -10)
+verticalpos2 = (-22, 38, -10)
+verticalpos3 = (-18, 51, -10)
+verticalpos4 = (-13.9695768086, 64, -10)
+verticalpos5 = (-9.9555257087, 77, -10)
+verticalpos6 = (-5.9414746088, 90, -10)
+# Crear la ranura inclinada
+
+
+SlotVolume = create_inclined_slot(
+    slot_width=SlotWidth,
+    slot_height=SlotHeight,
+    slot_depth=SlotDepth,
+    inclination_angle=InclinationAngle,
+    position=SlotPosition
+)
+
+SlotVolume2 = create_inclined_slot(
+    slot_width=SlotWidth,
+    slot_height=SlotHeight,
+    slot_depth=SlotDepth,
+    inclination_angle=InclinationAngle,
+    position=SlotPosition2
+)
+
+SlotVolume3 = create_inclined_slot(
+    slot_width=SlotWidth,
+    slot_height=SlotHeight,
+    slot_depth=SlotDepth,
+    inclination_angle=InclinationAngle,
+    position=SlotPosition3
+)
+
+SlotVolume4 = create_inclined_slot(
+    slot_width=SlotWidth,
+    slot_height=SlotHeight,
+    slot_depth=SlotDepth,
+    inclination_angle=InclinationAngle,
+    position=SlotPosition4
+)
+
+vertical = create_inclined_slot2(
+    slot_width=SlotWidth,
+    slot_height=SlotHeight,
+    slot_depth=SlotDepth,
+    inclination_angle=InclinationAngle,
+    position=verticalpos
+)
+
+vertical2 = create_inclined_slot2(
+    slot_width=SlotWidth,
+    slot_height=SlotHeight,
+    slot_depth=SlotDepth,
+    inclination_angle=InclinationAngle,
+    position=verticalpos2
+)
+
+vertical3 = create_inclined_slot2(
+    slot_width=SlotWidth,
+    slot_height=SlotHeight,
+    slot_depth=SlotDepth,
+    inclination_angle=InclinationAngle,
+    position=verticalpos3
+)
+vertical4 = create_inclined_slot2(
+    slot_width=SlotWidth,
+    slot_height=SlotHeight,
+    slot_depth=SlotDepth,
+    inclination_angle=InclinationAngle,
+    position=verticalpos4
+)
+vertical5 = create_inclined_slot2(
+    slot_width=SlotWidth,
+    slot_height=SlotHeight,
+    slot_depth=SlotDepth,
+    inclination_angle=InclinationAngle,
+    position=verticalpos5
+)
+vertical6 = create_inclined_slot2(
+    slot_width=SlotWidth,
+    slot_height=SlotHeight,
+    slot_depth=SlotDepth,
+    inclination_angle=InclinationAngle,
+    position=verticalpos6
+)
+# Añadir la ranura como un grupo físico para visualizarla
+gmsh.model.addPhysicalGroup(3, [SlotVolume[0][1]], tag=2, name="SlotPrism")
+gmsh.model.addPhysicalGroup(3, [SlotVolume2[0][1]], tag=3, name="SlotPrism2")
+gmsh.model.addPhysicalGroup(3, [SlotVolume3[0][1]], tag=4, name="SlotPrism3")
+gmsh.model.addPhysicalGroup(3, [SlotVolume4[0][1]], tag=5, name="SlotPrism4")
+gmsh.model.addPhysicalGroup(3, [vertical[0][1]], tag=6, name="vertical")
+gmsh.model.addPhysicalGroup(3, [vertical2[0][1]], tag=7, name="vertical2")
+gmsh.model.addPhysicalGroup(3, [vertical3[0][1]], tag=8, name="vertical3")
+gmsh.model.addPhysicalGroup(3, [vertical4[0][1]], tag=9, name="vertical4")
+gmsh.model.addPhysicalGroup(3, [vertical5[0][1]], tag=10, name="vertical5")
+gmsh.model.addPhysicalGroup(3, [vertical6[0][1]], tag=11, name="vertical6")
+# ---------------------------
+# Visualización y Ajuste
+# ---------------------------
+
+# Comentar temporalmente la operación de corte para visualizar la ranura antes del corte
+# Realizar la operación de corte
+GripperWithSlot = factory.cut(TotalGripper, SlotVolume, removeObject=True, removeTool=True)[0]
+GripperWithSlot = factory.cut(TotalGripper, SlotVolume2, removeObject=True, removeTool=True)[0]
+GripperWithSlot = factory.cut(TotalGripper, SlotVolume3, removeObject=True, removeTool=True)[0]
+GripperWithSlot = factory.cut(TotalGripper, SlotVolume4, removeObject=True, removeTool=True)[0]
+GripperWithSlot = factory.cut(TotalGripper, vertical, removeObject=True, removeTool=True)[0]
+GripperWithSlot = factory.cut(TotalGripper, vertical2, removeObject=True, removeTool=True)[0]
+GripperWithSlot = factory.cut(TotalGripper, vertical3, removeObject=True, removeTool=True)[0]
+GripperWithSlot = factory.cut(TotalGripper, vertical4, removeObject=True, removeTool=True)[0]
+GripperWithSlot = factory.cut(TotalGripper, vertical5, removeObject=True, removeTool=True)[0]
+GripperWithSlot = factory.cut(TotalGripper, vertical6, removeObject=True, removeTool=True)[0]
 
 factory.synchronize()
 
@@ -173,7 +376,6 @@ factory.synchronize()
 
 # Generar la malla 3D
 gmsh.model.mesh.generate(3)
-
 # Exportar a VTK y STL
 gmsh.write("FinRay.vtk")
 gmsh.write("FinRay.stl")
