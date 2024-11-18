@@ -24,10 +24,10 @@ InnerGripperHeight = (Constants.GripperWidth - Constants.WallThickness) / np.cos
 Phi = np.arctan2(Constants.GripperWidth - Constants.WallThickness, InnerGripperHeight)
 
 # ---------------------------
-# Definición de Puntos
+# Definición de Puntos para la Garra Completa
 # ---------------------------
 
-# Puntos de la pared interna (manteniendo las barras internas)
+# Puntos de la pared interna
 P0_inner = factory.addPoint(Constants.GripperWidth - Constants.WallThickness, 0, 0)
 P1_inner = factory.addPoint(Constants.GripperWidth, 0, 0)
 P2_inner = factory.addPoint(Constants.WallThickness, Constants.GripperHeight + Constants.GripperHeightGift, 0)
@@ -68,7 +68,6 @@ PointTags_bars = []
 BarPositions = np.linspace(0, InnerGripperHeight, Constants.NBars + 2)
 
 for BarPosition in BarPositions[1:-1]:
-    print(f"BarPosition: {BarPosition}")
     StepWidth = 0.1
 
     BarTotalLength = np.tan(Phi) * BarPosition
@@ -119,41 +118,52 @@ Vol_outer = Extrude_outer[1][1]
 Extrude_bars = factory.extrude([(2, SurfaceTag_bars)], 0, 0, Constants.Depth)
 Vol_bars = Extrude_bars[1][1]
 
-# ---------------------------
-# Alinear las Paredes Externas con las Internas
-# ---------------------------
-
-# Como la pared externa es más profunda, necesitamos alinear su cara interna con la cara externa de la pared interna.
-# Calculamos el desplazamiento necesario en el eje Z
+# Alinear la pared externa con la interna en el eje Z
 DepthDifference = Constants.DepthOuter - Constants.Depth
-
-# Desplazamos la pared externa en el eje Z para que se alinee correctamente
 factory.translate([(3, Vol_outer)], 0, 0, -DepthDifference)
 
-# ---------------------------
-# Fusionar Volúmenes
-# ---------------------------
-
-factory.synchronize()
-
 # Fusionar la pared interna con las barras internas
+factory.synchronize()
 Solid_inner = factory.fuse([(3, Vol_inner)], [(3, Vol_bars)])[0]
 
-factory.synchronize()
-
 # Fusionar el sólido interno con la pared externa
+factory.synchronize()
 Solid_combined = factory.fuse(Solid_inner, [(3, Vol_outer)])[0]
 
-factory.synchronize()
-
-# Copiar y reflejar el sólido combinado para crear la otra mitad de la garra (simetría)
+# Copiar y reflejar el sólido combinado para crear la garra completa
 CopyDimTags = factory.copy(Solid_combined)
-factory.symmetrize(CopyDimTags, 1, 0, 0, 0)
+factory.symmetrize(CopyDimTags, 1, 0, 0, 0)  # Reflejar en el plano YZ
 
 factory.synchronize()
 
-# Fusionar las dos mitades de la garra
-FullSolid = factory.fuse(CopyDimTags, Solid_combined)[0]
+# Fusionar las dos mitades para obtener la garra completa
+result = factory.fuse(Solid_combined, CopyDimTags)
+FullGripper = result[0]
+
+factory.synchronize()
+
+# Obtener todos los volúmenes de la garra completa
+FullGripperVolumes = FullGripper
+
+# ---------------------------
+# Duplicar y Posicionar la Garra Completa
+# ---------------------------
+
+# Hacer una copia de la garra completa incluyendo todas las entidades
+DuplicatedGripper = factory.copy(FullGripperVolumes)
+
+# Rotar la garra duplicada 180 grados alrededor del eje Y
+factory.rotate(DuplicatedGripper, 0, 0, 0, 0, 1, 0, np.pi)
+
+# Desplazar la copia en el eje Z para dejar un espacio entre las garras
+SpaceBetweenGrippers_Z = -3  # Ajusta este valor según el espacio deseado
+factory.translate(DuplicatedGripper, 0, 0, SpaceBetweenGrippers_Z)
+
+factory.synchronize()
+
+# Opcional: Fusionar ambas garras en una sola entidad
+# Si deseas que sean entidades separadas, puedes omitir este paso
+TotalGripper = factory.fuse(FullGripperVolumes, DuplicatedGripper)[0]
 
 factory.synchronize()
 
